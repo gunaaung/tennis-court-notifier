@@ -14,6 +14,7 @@ from src.checkers import (
     parse_ozzy_header_day_month,
     parse_ozzy_row_start_hour,
     parse_simoorgh_availability_payload,
+    parse_suanluang_availability_payload,
 )
 from src.formatter import (
     build_line_oa_booking_url,
@@ -27,6 +28,7 @@ from src.models import (
     VENUE_COZY,
     VENUE_OZZY,
     VENUE_SIMOORGH,
+    VENUE_SUANLUANG,
     filter_future_slots,
 )
 from src.state import find_new_slots, load_state, merge_and_save_state
@@ -95,6 +97,26 @@ class ParsingTests(unittest.TestCase):
                 CourtSlot(VENUE_SIMOORGH, "2026-11-25", 18, "Court2"),
                 CourtSlot(VENUE_SIMOORGH, "2026-11-25", 20, "Court2"),
             ],
+        )
+
+    def test_parse_suanluang_availability_payload_excludes_tennis_board(self) -> None:
+        payload = {
+            "courts": {
+                "cmqugjzsi000c59fgvl2ydfoq": [
+                    {"time": "18:00", "state": "available", "priceSatang": 35000},
+                    {"time": "19:00", "state": "booked", "priceSatang": 35000},
+                ],
+                "cmqugobqw001159fgftxnztct": [
+                    {"time": "18:00", "state": "available", "priceSatang": 3000},
+                ],
+            }
+        }
+        slots = parse_suanluang_availability_payload(
+            payload, "2026-11-25", {18, 19, 20}
+        )
+        self.assertEqual(
+            slots,
+            [CourtSlot(VENUE_SUANLUANG, "2026-11-25", 18, "Court 1")],
         )
 
 

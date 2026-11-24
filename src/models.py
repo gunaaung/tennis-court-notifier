@@ -12,12 +12,14 @@ VENUE_COZY = "Cozy Tennis"
 VENUE_OZZY = "Ozzy Court (The Challenge)"
 VENUE_BEAT = "BEAT Discovery"
 VENUE_SIMOORGH = "Simoorgh Tennis (Bangna)"
+VENUE_SUANLUANG = "ศูนย์กีฬาสวนหลวง ร.9"
 
 VENUE_URLS = {
     VENUE_COZY: "https://book.cozytennis.com/schedule",
     VENUE_OZZY: "https://court.ozzy.asia/court-demo",
     VENUE_BEAT: "https://beatdiscovery.okrabook.com/venues/v2/venue/BEAT%20Discovery",
     VENUE_SIMOORGH: "https://getoncourt.app/en/courts/simoorgh-tennis-academy-bangna/book",
+    VENUE_SUANLUANG: "https://www.courtthai.com/v/suanluang9/booking?sport=TENNIS",
 }
 
 VENUE_LINE_OAS = {
@@ -25,6 +27,7 @@ VENUE_LINE_OAS = {
     VENUE_OZZY: "@925atqia",
     VENUE_BEAT: "@BEATDiscovery",
     VENUE_SIMOORGH: "@409mkpcj",
+    VENUE_SUANLUANG: "@slr9sportcenter",
 }
 
 

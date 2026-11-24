@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import date
+import httpx
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 from src.models import (
@@ -12,6 +13,7 @@ from src.models import (
     VENUE_COZY,
     VENUE_OZZY,
     VENUE_SIMOORGH,
+    VENUE_SUANLUANG,
     VENUE_URLS,
 )
 
@@ -23,6 +25,15 @@ OZZY_TIME_ROW_PATTERN = re.compile(r"(\d{1,2})\.00\s*-\s*(\d{1,2})\.00")
 
 SIMOORGH_VENUE_ID = "01KYP7M56137N4FH9340K04CM6"
 BEAT_SPORT_TENNIS_ID = "3"
+SUANLUANG_VENUE_ID = "cmqugelqy000259fg1cmuyu2m"
+SUANLUANG_TENNIS_COURTS = {
+    "cmqugjzsi000c59fgvl2ydfoq": "Court 1",
+    "cmquglqgc000h59fg8l7mdtnf": "Court 2",
+    "cmqugm196000l59fgm3ike7zt": "Court 3",
+    "cmqugmezj000p59fg5eh99q5r": "Court 4",
+    "cmqugnpin000t59fgj1mtdzww": "Court 5",
+    "cmqugo1n6000x59fgdbt6fh1s": "Court 6",
+}
 
 MONTH_ABBR_TO_NUM = {
     "jan": 1,
@@ -137,6 +148,39 @@ def parse_simoorgh_availability_payload(
             slots.append(
                 CourtSlot(
                     venue=VENUE_SIMOORGH,
+                    date_str=date_str,
+                    hour=start_hour,
+                    court=court_name,
+                )
+            )
+    return sorted(slots)
+
+
+def parse_suanluang_availability_payload(
+    payload: dict,
+    date_str: str,
+    target_hours: set[int],
+) -> list[CourtSlot]:
+    """Parse CourtThai /api/availability/venue JSON into Tennis-only CourtSlots."""
+    slots: list[CourtSlot] = []
+    courts_map = payload.get("courts", {})
+    for court_id, entries in courts_map.items():
+        court_name = SUANLUANG_TENNIS_COURTS.get(court_id)
+        if not court_name:
+            # Exclude non-Tennis courts such as Tennis Board.
+            continue
+        for entry in entries:
+            if entry.get("state") != "available":
+                continue
+            time_str = str(entry.get("time", ""))
+            if ":" not in time_str:
+                continue
+            start_hour = int(time_str.split(":", 1)[0])
+            if start_hour not in target_hours:
+                continue
+            slots.append(
+                CourtSlot(
+                    venue=VENUE_SUANLUANG,
                     date_str=date_str,
                     hour=start_hour,
                     court=court_name,
@@ -364,6 +408,30 @@ def check_simoorgh_oncourt(
     )
 
 
+def check_suan_luang_r9(
+    target_dates: list[date],
+    target_hours: set[int],
+) -> list[CourtSlot]:
+    """Fetch public Tennis availability for Suan Luang R.9 from CourtThai API."""
+    slots: list[CourtSlot] = []
+    with httpx.Client(timeout=15.0) as client:
+        for target_date in target_dates:
+            date_iso = target_date.isoformat()
+            response = client.get(
+                "https://www.courtthai.com/api/availability/venue",
+                params={"venueId": SUANLUANG_VENUE_ID, "date": date_iso},
+            )
+            response.raise_for_status()
+            slots.extend(
+                parse_suanluang_availability_payload(
+                    payload=response.json(),
+                    date_str=date_iso,
+                    target_hours=target_hours,
+                )
+            )
+    return sorted(slots)
+
+
 def fetch_all_available_slots(
     target_dates: list[date],
     target_hours: set[int],
@@ -435,5 +503,10 @@ def fetch_all_available_slots(
                     page.close()
         finally:
             browser.close()
+
+    try:
+        slots_by_venue[VENUE_SUANLUANG] = check_suan_luang_r9(target_dates, target_hours)
+    except Exception as exc:
+        errors_by_venue[VENUE_SUANLUANG] = f"{type(exc).__name__}: {exc}"
 
     return slots_by_venue, errors_by_venue, skipped_venues
