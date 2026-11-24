@@ -52,9 +52,12 @@ jobs:
         env:
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          ONCOURT_EMAIL: ${{ secrets.ONCOURT_EMAIL }}
+          ONCOURT_PASSWORD: ${{ secrets.ONCOURT_PASSWORD }}
           DAYS_AHEAD: "2"
           TARGET_HOURS: "18,19,20"
           SKIP_PAST_HOURS: "true"
+          BEAT_EXCLUDE_KID_COURTS: "true"
         run: |
           if [ "${{ inputs.force_notify }}" = "true" ]; then
             python -m src.main --force-notify

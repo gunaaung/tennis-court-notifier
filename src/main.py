@@ -66,6 +66,13 @@ def main(argv: list[str] | None = None) -> int:
     days_ahead = int(os.getenv("DAYS_AHEAD", "2"))
     target_hours = parse_target_hours(os.getenv("TARGET_HOURS", "18,19,20"))
     skip_past = os.getenv("SKIP_PAST_HOURS", "true").lower() in {"1", "true", "yes"}
+    beat_exclude_kid = os.getenv("BEAT_EXCLUDE_KID_COURTS", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    oncourt_email = os.getenv("ONCOURT_EMAIL", "").strip()
+    oncourt_password = os.getenv("ONCOURT_PASSWORD", "").strip()
     state_path = Path(os.getenv("STATE_FILE", "state.json"))
 
     now_bkk = now_bangkok()
@@ -76,11 +83,17 @@ def main(argv: list[str] | None = None) -> int:
         f"for hours {target_hours} (Bangkok time: {now_bkk.strftime('%Y-%m-%d %H:%M:%S')})"
     )
 
-    raw_slots_by_venue, errors_by_venue = fetch_all_available_slots(
+    raw_slots_by_venue, errors_by_venue, skipped_venues = fetch_all_available_slots(
         target_dates=target_dates,
         target_hours=set(target_hours),
         headless=not args.headed,
+        beat_exclude_kid=beat_exclude_kid,
+        oncourt_email=oncourt_email,
+        oncourt_password=oncourt_password,
     )
+
+    for venue, reason in skipped_venues.items():
+        print(f"[INFO] Skipped {venue}: {reason}")
 
     for venue, err in errors_by_venue.items():
         print(f"[WARN] Failed checking {venue}: {err}", file=sys.stderr)

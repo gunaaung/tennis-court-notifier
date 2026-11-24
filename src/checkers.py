@@ -1,4 +1,4 @@
-"""Playwright-based availability checkers for Cozy Tennis and Ozzy Court."""
+"""Playwright-based availability checkers for all configured tennis venues."""
 
 from __future__ import annotations
 
@@ -6,13 +6,23 @@ import re
 from datetime import date
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
-from src.models import CourtSlot, VENUE_COZY, VENUE_OZZY, VENUE_URLS
+from src.models import (
+    CourtSlot,
+    VENUE_BEAT,
+    VENUE_COZY,
+    VENUE_OZZY,
+    VENUE_SIMOORGH,
+    VENUE_URLS,
+)
 
 COZY_ARIA_PATTERN = re.compile(
     r"^(Court\s+\d+)\s+(\d{1,2}):00[–-](\d{1,2}):00\s+(ว่าง|เต็ม)$"
 )
 OZZY_HEADER_DATE_PATTERN = re.compile(r"(\d{1,2})\s+([A-Za-z]{3})")
 OZZY_TIME_ROW_PATTERN = re.compile(r"(\d{1,2})\.00\s*-\s*(\d{1,2})\.00")
+
+SIMOORGH_VENUE_ID = "01KYP7M56137N4FH9340K04CM6"
+BEAT_SPORT_TENNIS_ID = "3"
 
 MONTH_ABBR_TO_NUM = {
     "jan": 1,
@@ -57,6 +67,82 @@ def parse_ozzy_row_start_hour(time_text: str) -> int | None:
     if not match:
         return None
     return int(match.group(1))
+
+
+def normalize_beat_court_name(title: str) -> str:
+    """Shorten 'Tennis Indoor Court 1' -> 'Indoor Court 1' so LINE button labels fit."""
+    cleaned = " ".join(title.split())
+    if cleaned.lower().startswith("tennis "):
+        return cleaned[7:].strip()
+    return cleaned
+
+
+def parse_beat_times_payload(
+    payload: dict,
+    date_str: str,
+    target_hours: set[int],
+    exclude_kid_courts: bool = True,
+) -> list[CourtSlot]:
+    """Parse BEAT Discovery /times JSON response into available Tennis CourtSlots."""
+    slots: list[CourtSlot] = []
+    for slot in payload.get("slots", []):
+        slot_id = slot.get("id")
+        if not isinstance(slot_id, int):
+            continue
+        start_hour = slot_id // 3600
+        if start_hour not in target_hours:
+            continue
+        for court_obj in slot.get("courts", []):
+            if court_obj.get("booked") is True:
+                continue
+            raw_title = str(court_obj.get("title", "")).strip()
+            if not raw_title:
+                continue
+            if exclude_kid_courts and "(kid)" in raw_title.lower():
+                continue
+            slots.append(
+                CourtSlot(
+                    venue=VENUE_BEAT,
+                    date_str=date_str,
+                    hour=start_hour,
+                    court=normalize_beat_court_name(raw_title),
+                )
+            )
+    return sorted(slots)
+
+
+def parse_simoorgh_availability_payload(
+    payload: list[dict],
+    target_dates: set[str],
+    target_hours: set[int],
+) -> list[CourtSlot]:
+    """Parse GetOnCourt /availability JSON response into available CourtSlots."""
+    slots: list[CourtSlot] = []
+    for day_entry in payload:
+        date_str = str(day_entry.get("date", ""))
+        if date_str not in target_dates:
+            continue
+        for slot in day_entry.get("slots", []):
+            if slot.get("available") is not True:
+                continue
+            slot_seconds = slot.get("slotSeconds")
+            if not isinstance(slot_seconds, int):
+                continue
+            start_hour = slot_seconds // 3600
+            if start_hour not in target_hours:
+                continue
+            court_name = str(slot.get("courtName", "")).strip()
+            if not court_name:
+                continue
+            slots.append(
+                CourtSlot(
+                    venue=VENUE_SIMOORGH,
+                    date_str=date_str,
+                    hour=start_hour,
+                    court=court_name,
+                )
+            )
+    return sorted(slots)
 
 
 def check_cozy_tennis(
@@ -186,24 +272,134 @@ def check_ozzy_court(
     return sorted(slots)
 
 
+def check_beat_discovery(
+    page: Page,
+    target_dates: list[date],
+    target_hours: set[int],
+    exclude_kid_courts: bool = True,
+) -> list[CourtSlot]:
+    """Fetch Tennis-only availability from BEAT Discovery within Playwright session."""
+    url = VENUE_URLS[VENUE_BEAT]
+    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    page.wait_for_selector(
+        f'button.vn-sport[data-pick="sport"][data-value="{BEAT_SPORT_TENNIS_ID}"]',
+        timeout=25000,
+    )
+
+    slots: list[CourtSlot] = []
+    for target_date in target_dates:
+        date_iso = target_date.isoformat()
+        payload = page.evaluate(
+            """async ({ sportId, dateStr }) => {
+                const res = await fetch(
+                    `/venues/v2/venue/BEAT%20Discovery/times?sport=${sportId}&date=${dateStr}`,
+                    { headers: { "Accept": "application/json" } }
+                );
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+                return await res.json();
+            }""",
+            {"sportId": BEAT_SPORT_TENNIS_ID, "dateStr": date_iso},
+        )
+        slots.extend(
+            parse_beat_times_payload(
+                payload=payload,
+                date_str=date_iso,
+                target_hours=target_hours,
+                exclude_kid_courts=exclude_kid_courts,
+            )
+        )
+
+    return sorted(slots)
+
+
+def check_simoorgh_oncourt(
+    page: Page,
+    target_dates: list[date],
+    target_hours: set[int],
+    email: str,
+    password: str,
+) -> list[CourtSlot]:
+    """Sign into OnCourt with email/password and fetch Simoorgh availability."""
+    login_url = (
+        "https://getoncourt.app/en/login"
+        "?redirectTo=%2Fen%2Fcourts%2Fsimoorgh-tennis-academy-bangna%2Fbook"
+    )
+    page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
+    page.get_by_label("Email").wait_for(state="visible", timeout=20000)
+    page.get_by_label("Email").fill(email)
+    page.get_by_label("Password").fill(password)
+    page.get_by_role("button", name="Sign in").click()
+    page.wait_for_url("**/simoorgh-tennis-academy-bangna/book*", timeout=25000)
+    page.wait_for_selector('[role="region"][aria-label="Select Date"]', timeout=20000)
+
+    from_date = min(target_dates).isoformat()
+    to_date = max(target_dates).isoformat()
+    payload = page.evaluate(
+        """async ({ venueId, fromDate, toDate }) => {
+            const res = await fetch(
+                `https://api.getoncourt.app/app/v1/venues/${venueId}/availability?from=${fromDate}&to=${toDate}`,
+                { credentials: "include", headers: { "Accept": "application/json" } }
+            );
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+            return await res.json();
+        }""",
+        {"venueId": SIMOORGH_VENUE_ID, "fromDate": from_date, "toDate": to_date},
+    )
+
+    return parse_simoorgh_availability_payload(
+        payload=payload,
+        target_dates={d.isoformat() for d in target_dates},
+        target_hours=target_hours,
+    )
+
+
 def fetch_all_available_slots(
     target_dates: list[date],
     target_hours: set[int],
     headless: bool = True,
-) -> tuple[dict[str, list[CourtSlot]], dict[str, str]]:
+    beat_exclude_kid: bool = True,
+    oncourt_email: str = "",
+    oncourt_password: str = "",
+) -> tuple[dict[str, list[CourtSlot]], dict[str, str], dict[str, str]]:
     """Run all venue checkers in a single browser session.
 
     Returns:
         slots_by_venue: mapping from venue name to list of available CourtSlot
         errors_by_venue: mapping from venue name to error string for any failed check
+        skipped_venues: mapping from venue name to skip reason
     """
     slots_by_venue: dict[str, list[CourtSlot]] = {}
     errors_by_venue: dict[str, str] = {}
+    skipped_venues: dict[str, str] = {}
 
     checkers = [
-        (VENUE_COZY, check_cozy_tennis),
-        (VENUE_OZZY, check_ozzy_court),
+        (VENUE_COZY, lambda page: check_cozy_tennis(page, target_dates, target_hours)),
+        (VENUE_OZZY, lambda page: check_ozzy_court(page, target_dates, target_hours)),
+        (
+            VENUE_BEAT,
+            lambda page: check_beat_discovery(
+                page, target_dates, target_hours, exclude_kid_courts=beat_exclude_kid
+            ),
+        ),
     ]
+
+    if oncourt_email and oncourt_password:
+        checkers.append(
+            (
+                VENUE_SIMOORGH,
+                lambda page: check_simoorgh_oncourt(
+                    page, target_dates, target_hours, oncourt_email, oncourt_password
+                ),
+            )
+        )
+    else:
+        skipped_venues[VENUE_SIMOORGH] = (
+            "ONCOURT_EMAIL and ONCOURT_PASSWORD are not configured"
+        )
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
@@ -216,7 +412,7 @@ def fetch_all_available_slots(
             for venue_name, checker_fn in checkers:
                 page = context.new_page()
                 try:
-                    slots_by_venue[venue_name] = checker_fn(page, target_dates, target_hours)
+                    slots_by_venue[venue_name] = checker_fn(page)
                 except (PlaywrightTimeoutError, Exception) as exc:
                     errors_by_venue[venue_name] = f"{type(exc).__name__}: {exc}"
                 finally:
@@ -224,4 +420,4 @@ def fetch_all_available_slots(
         finally:
             browser.close()
 
-    return slots_by_venue, errors_by_venue
+    return slots_by_venue, errors_by_venue, skipped_venues

@@ -8,16 +8,26 @@ from datetime import datetime
 from pathlib import Path
 
 from src.checkers import (
+    parse_beat_times_payload,
     parse_cozy_aria_label,
     parse_ozzy_header_day_month,
     parse_ozzy_row_start_hour,
+    parse_simoorgh_availability_payload,
 )
 from src.formatter import (
     build_line_oa_booking_url,
     format_line_flex_message,
     format_line_message,
 )
-from src.models import BANGKOK_TZ, CourtSlot, VENUE_COZY, VENUE_OZZY, filter_future_slots
+from src.models import (
+    BANGKOK_TZ,
+    CourtSlot,
+    VENUE_BEAT,
+    VENUE_COZY,
+    VENUE_OZZY,
+    VENUE_SIMOORGH,
+    filter_future_slots,
+)
 from src.state import find_new_slots, load_state, merge_and_save_state
 
 
@@ -38,6 +48,53 @@ class ParsingTests(unittest.TestCase):
         self.assertEqual(parse_ozzy_header_day_month("Tue - 1 Dec"), (1, 12))
         self.assertEqual(parse_ozzy_row_start_hour("19.00 - 20.00"), 19)
         self.assertEqual(parse_ozzy_row_start_hour("16.00-17.00"), 16)
+
+    def test_parse_beat_times_payload_excludes_kid_courts(self) -> None:
+        payload = {
+            "status": 1,
+            "slots": [
+                {
+                    "id": 68400,
+                    "courts": [
+                        {"id": 1, "title": "Tennis Indoor Court 1", "booked": False},
+                        {"id": 9, "title": "Tennis Red Clay Court 9 (Kid)", "booked": False},
+                        {"id": 2, "title": "Tennis Indoor Court 2", "booked": True},
+                    ],
+                },
+                {
+                    "id": 75600,
+                    "courts": [{"id": 3, "title": "Tennis Indoor Court 3", "booked": False}],
+                },
+            ],
+        }
+        slots = parse_beat_times_payload(payload, "2026-11-24", {18, 19, 20})
+        self.assertEqual(
+            slots,
+            [CourtSlot(VENUE_BEAT, "2026-11-24", 19, "Indoor Court 1")],
+        )
+
+    def test_parse_simoorgh_availability_payload(self) -> None:
+        payload = [
+            {
+                "date": "2026-11-25",
+                "slots": [
+                    {"courtName": "Court2", "slotSeconds": 64800, "available": True},
+                    {"courtName": "Court2", "slotSeconds": 68400, "available": False},
+                    {"courtName": "Court2", "slotSeconds": 72000, "available": True},
+                    {"courtName": "Court1", "slotSeconds": 75600, "available": True},
+                ],
+            }
+        ]
+        slots = parse_simoorgh_availability_payload(
+            payload, {"2026-11-24", "2026-11-25"}, {18, 19, 20}
+        )
+        self.assertEqual(
+            slots,
+            [
+                CourtSlot(VENUE_SIMOORGH, "2026-11-25", 18, "Court2"),
+                CourtSlot(VENUE_SIMOORGH, "2026-11-25", 20, "Court2"),
+            ],
+        )
 
 
 class StateAndFormattingTests(unittest.TestCase):

@@ -1,8 +1,10 @@
 # 🎾 Tennis Court Notifier (LINE Messaging API)
 
-ระบบตรวจสอบตารางคอร์ทเทนนิสอัตโนมัติสำหรับช่วงเวลา **18.00–21.00 น.** (เช็กล่วงหน้า **วันนี้ + วันพรุ่งนี้**) จาก 2 สนาม:
-1. **Cozy Tennis** (`https://book.cozytennis.com/schedule`)
-2. **Ozzy Court / The Challenge Tennis Club** (`https://court.ozzy.asia/court-demo`)
+ระบบตรวจสอบตารางคอร์ทเทนนิสอัตโนมัติสำหรับช่วงเวลา **18.00–21.00 น.** (เช็กล่วงหน้า **วันนี้ + วันพรุ่งนี้**) จาก 4 สนาม:
+1. **Cozy Tennis** (`https://book.cozytennis.com/schedule`) — LINE OA `@cozytennis`
+2. **Ozzy Court / The Challenge Tennis Club** (`https://court.ozzy.asia/court-demo`) — LINE OA `@925atqia`
+3. **BEAT Discovery (เฉพาะ Tennis มาตรฐาน ไม่รวมคอร์ท Kid)** (`https://beatdiscovery.okrabook.com/venues/v2/venue/BEAT%20Discovery`) — LINE OA `@BEATDiscovery`
+4. **Simoorgh Tennis Academy (Bangna)** (`https://getoncourt.app/en/courts/simoorgh-tennis-academy-bangna/book`) — LINE OA `@409mkpcj` *(ต้องตั้งค่า Email/Password ของ OnCourt ใน Secrets)*
 
 รันอัตโนมัติบน **GitHub Actions** ทุกๆ 10 นาที และส่งข้อความแจ้งเตือนเข้า **LINE** ทันทีเมื่อมีคอร์ทว่างใหม่ (แยกให้ชัดเจนทั้งกรณีว่างติดกัน 2 ชม. และว่างแยก 1 ชม.) พร้อมระบบจำสถานะเพื่อไม่ให้แจ้งเตือนซ้ำ
 
@@ -37,9 +39,10 @@
 ## 🔐 วิธีใส่ Secrets บน GitHub เพื่อให้ระบบเริ่มแจ้งเตือน
 
 1. เปิด Repository นี้บน GitHub แล้วไปที่แท็บ **Settings** > **Secrets and variables** > **Actions**
-2. กด **New repository secret** เพิ่ม 2 ค่านี้:
+2. กด **New repository secret** เพิ่มค่าที่จำเป็น:
    - `LINE_CHANNEL_ACCESS_TOKEN`: ค่า Channel access token ที่ได้จากข้อ 4
    - `LINE_USER_ID`: ค่า User ID (`U...`) ของคุณ
+   - *(สำหรับสนาม Simoorgh / OnCourt)* เพิ่ม `ONCOURT_EMAIL` และ `ONCOURT_PASSWORD` ของบัญชี OnCourt (หากยังไม่ได้ตั้งรหัสผ่านให้ใช้บัญชีแบบ Email/Password ของ OnCourt เพื่อหลีกเลี่ยงระบบติด 2FA ของ Google)
 3. ไปที่แท็บ **Actions** > เลือก Workflow **Check Tennis Courts**
    - กด **Run workflow** แล้วติ๊ก **`force_notify = true`** เพื่อทดสอบรับข้อความแจ้งเตือนเข้า LINE ทันที
 
@@ -73,4 +76,5 @@ python -m src.main --force-notify
 | `DAYS_AHEAD` | `2` | จำนวนวันล่วงหน้า (`2` = วันนี้ + พรุ่งนี้) |
 | `TARGET_HOURS` | `18,19,20` | ชั่วโมงเริ่มต้นที่ต้องการเช็ก (`18` = 18:00–19:00, `19` = 19:00–20:00, `20` = 20:00–21:00) |
 | `SKIP_PAST_HOURS` | `true` | ข้ามชั่วโมงของวันนี้ที่เลยเวลาปัจจุบันไปแล้ว |
+| `BEAT_EXCLUDE_KID_COURTS` | `true` | กรองคอร์ทเด็ก `(Kid)` ของ BEAT Discovery ออก |
 | `STATE_FILE` | `state.json` | ไฟล์เก็บสถานะคอร์ทที่แจ้งเตือนไปแล้ว |
