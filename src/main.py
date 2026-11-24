@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from src.checkers import fetch_all_available_slots
-from src.formatter import format_line_message
+from src.formatter import format_line_flex_message, format_line_message
 from src.models import (
     CourtSlot,
     filter_future_slots,
@@ -16,7 +16,7 @@ from src.models import (
     now_bangkok,
     parse_target_hours,
 )
-from src.notifier import send_line_push
+from src.notifier import send_line_messages
 from src.state import find_new_slots, load_state, merge_and_save_state
 
 
@@ -105,7 +105,14 @@ def main(argv: list[str] | None = None) -> int:
     new_slots = find_new_slots(slots_by_venue, previous_keys)
     print(f"[INFO] Newly available slot(s): {len(new_slots)}")
 
-    message = format_line_message(
+    preview_text = format_line_message(
+        slots_by_venue=slots_by_venue,
+        new_slots=new_slots,
+        now_bkk=now_bkk,
+        target_hours=target_hours,
+        include_unchanged=args.force_notify,
+    )
+    flex_message = format_line_flex_message(
         slots_by_venue=slots_by_venue,
         new_slots=new_slots,
         now_bkk=now_bkk,
@@ -113,24 +120,28 @@ def main(argv: list[str] | None = None) -> int:
         include_unchanged=args.force_notify,
     )
 
-    if message is None and args.force_notify:
+    line_messages: list[dict] = []
+    if flex_message is not None:
+        line_messages = [flex_message]
+    elif args.force_notify:
         date_labels = ", ".join(d.isoformat() for d in target_dates)
-        message = (
+        preview_text = (
             f"🎾 ทดสอบระบบแจ้งเตือนคอร์ทเทนนิส\n"
             f"เช็กวันที่ {date_labels} ช่วง {min(target_hours):02d}:00–{max(target_hours) + 1:02d}:00 น.\n"
             f"ผลลัพธ์: ยังไม่มีคอร์ทว่างในขณะนี้ค่ะ"
         )
+        line_messages = [{"type": "text", "text": preview_text}]
 
-    if message:
+    if preview_text:
         print("\n--- Notification Preview ---")
-        print(message)
+        print(preview_text)
         print("----------------------------\n")
 
     if args.dry_run:
         print("[INFO] Dry-run mode: skipped LINE push and state save.")
         return 0
 
-    if message:
+    if line_messages:
         token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "").strip()
         user_id = os.getenv("LINE_USER_ID", "").strip()
         if not token or not user_id:
@@ -139,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
         else:
-            send_line_push(token, user_id, message)
+            send_line_messages(token, user_id, line_messages)
             print("[INFO] Sent LINE push notification successfully.")
 
     merge_and_save_state(

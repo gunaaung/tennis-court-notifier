@@ -16,6 +16,11 @@ VENUE_URLS = {
     VENUE_OZZY: "https://court.ozzy.asia/court-demo",
 }
 
+VENUE_LINE_OAS = {
+    VENUE_COZY: "@cozytennis",
+    VENUE_OZZY: "@925atqia",
+}
+
 
 @dataclass(frozen=True, order=True)
 class CourtSlot:

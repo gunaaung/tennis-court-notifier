@@ -12,7 +12,11 @@ from src.checkers import (
     parse_ozzy_header_day_month,
     parse_ozzy_row_start_hour,
 )
-from src.formatter import format_line_message
+from src.formatter import (
+    build_line_oa_booking_url,
+    format_line_flex_message,
+    format_line_message,
+)
 from src.models import BANGKOK_TZ, CourtSlot, VENUE_COZY, VENUE_OZZY, filter_future_slots
 from src.state import find_new_slots, load_state, merge_and_save_state
 
@@ -90,6 +94,40 @@ class StateAndFormattingTests(unittest.TestCase):
         self.assertIn("ว่างติดกัน 2 ชม. (19:00–21:00): Court 1 🆕", msg)
         self.assertIn("ว่าง 1 ชม. (19:00–20:00): Court 2 🆕", msg)
         self.assertIn("https://book.cozytennis.com/schedule", msg)
+
+    def test_line_oa_booking_url_and_flex_message(self) -> None:
+        url = build_line_oa_booking_url(
+            "@cozytennis",
+            "สวัสดีครับ ขอจองคอร์ทวันพุธที่ 25 พ.ย. (พรุ่งนี้) เวลา 19:00-21:00 น. (Court 2) ครับ",
+        )
+        self.assertTrue(url.startswith("https://line.me/R/oaMessage/%40cozytennis/?"))
+        self.assertLessEqual(len(url), 1000)
+
+        now_bkk = datetime(2026, 11, 24, 18, 20, tzinfo=BANGKOK_TZ)
+        slot_ozzy = CourtSlot(VENUE_OZZY, "2026-11-25", 19, "Court 2")
+        slots_by_venue = {VENUE_OZZY: [slot_ozzy]}
+        flex = format_line_flex_message(
+            slots_by_venue=slots_by_venue,
+            new_slots=[slot_ozzy],
+            now_bkk=now_bkk,
+            target_hours=[19, 20],
+        )
+        self.assertIsNotNone(flex)
+        assert flex is not None
+        self.assertEqual(flex["type"], "flex")
+        self.assertLessEqual(len(flex["altText"]), 400)
+        bubble = flex["contents"]
+        self.assertEqual(bubble["type"], "bubble")
+        buttons = bubble["footer"]["contents"]
+        self.assertEqual(len(buttons), 2)
+        for btn in buttons:
+            self.assertLessEqual(len(btn["action"]["label"]), 40)
+            self.assertLessEqual(len(btn["action"]["uri"]), 1000)
+        self.assertTrue(
+            buttons[0]["action"]["uri"].startswith(
+                "https://line.me/R/oaMessage/%40925atqia/?"
+            )
+        )
 
 
 if __name__ == "__main__":

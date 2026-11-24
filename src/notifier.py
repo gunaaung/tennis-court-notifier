@@ -7,15 +7,17 @@ import httpx
 LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
 
 
-def send_line_push(
+def send_line_messages(
     channel_access_token: str,
     to_id: str,
-    text: str,
+    messages: list[dict],
     timeout: float = 15.0,
 ) -> None:
-    """Send a push text message via LINE Messaging API."""
+    """Send one or more LINE Messaging API message objects via push."""
     if not channel_access_token or not to_id:
         raise ValueError("LINE_CHANNEL_ACCESS_TOKEN and LINE_USER_ID must be set")
+    if not messages:
+        raise ValueError("messages must not be empty")
 
     headers = {
         "Content-Type": "application/json",
@@ -23,7 +25,7 @@ def send_line_push(
     }
     payload = {
         "to": to_id,
-        "messages": [{"type": "text", "text": text}],
+        "messages": messages,
     }
 
     response = httpx.post(LINE_PUSH_URL, headers=headers, json=payload, timeout=timeout)
@@ -31,3 +33,18 @@ def send_line_push(
         raise RuntimeError(
             f"LINE Messaging API error ({response.status_code}): {response.text}"
         )
+
+
+def send_line_push(
+    channel_access_token: str,
+    to_id: str,
+    text: str,
+    timeout: float = 15.0,
+) -> None:
+    """Send a plain-text push message via LINE Messaging API."""
+    send_line_messages(
+        channel_access_token=channel_access_token,
+        to_id=to_id,
+        messages=[{"type": "text", "text": text}],
+        timeout=timeout,
+    )
