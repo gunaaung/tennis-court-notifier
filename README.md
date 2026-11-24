@@ -7,7 +7,7 @@
 4. **ศูนย์กีฬาสวนหลวง ร.9 (เฉพาะ Tennis ไม่รวม Tennis Board)** (`https://www.courtthai.com/v/suanluang9/booking?sport=TENNIS`) — LINE OA `@slr9sportcenter` *(เปิดถึง 20:00 น.)*
 5. **BEAT Discovery (เฉพาะ Tennis มาตรฐาน ไม่รวมคอร์ท Kid)** (`https://beatdiscovery.okrabook.com/venues/v2/venue/BEAT%20Discovery`) — LINE OA `@BEATDiscovery` *(ใช้ Scheduled Automation บนเครื่อง เนื่องจากติด Cloudflare anti-bot challenge บน GitHub Actions)*
 
-รันอัตโนมัติบน **GitHub Actions** ทุกๆ 10 นาที และส่งข้อความแจ้งเตือนเข้า **LINE** ทันทีเมื่อมีคอร์ทว่างใหม่ (แยกให้ชัดเจนทั้งกรณีว่างติดกัน 2 ชม. และว่างแยก 1 ชม.) พร้อมระบบจำสถานะเพื่อไม่ให้แจ้งเตือนซ้ำ
+รันอัตโนมัติบน **GitHub Actions** ทุกๆ 15 นาที (ช่วงเวลา **09.00–19.00 น.** เวลาไทย) และส่งข้อความแจ้งเตือนเข้า **LINE** ทันทีเมื่อมีคอร์ทว่างใหม่ (แยกให้ชัดเจนทั้งกรณีว่างติดกันและว่างแยก 1 ชม.) พร้อมระบบจำสถานะเพื่อไม่ให้แจ้งเตือนซ้ำ
 
 ---
 
