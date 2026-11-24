@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
     days_ahead = int(os.getenv("DAYS_AHEAD", "2"))
-    target_hours = parse_target_hours(os.getenv("TARGET_HOURS", "19,20"))
+    target_hours = parse_target_hours(os.getenv("TARGET_HOURS", "18,19,20"))
     skip_past = os.getenv("SKIP_PAST_HOURS", "true").lower() in {"1", "true", "yes"}
     state_path = Path(os.getenv("STATE_FILE", "state.json"))
 

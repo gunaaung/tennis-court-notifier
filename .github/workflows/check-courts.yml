@@ -53,7 +53,7 @@ jobs:
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
           DAYS_AHEAD: "2"
-          TARGET_HOURS: "19,20"
+          TARGET_HOURS: "18,19,20"
           SKIP_PAST_HOURS: "true"
         run: |
           if [ "${{ inputs.force_notify }}" = "true" ]; then

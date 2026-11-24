@@ -110,6 +110,23 @@ def _group_affected_slots(
     return grouped
 
 
+def _find_consecutive_runs(hours: set[int]) -> list[tuple[int, int]]:
+    """Convert a set of start hours into maximal consecutive (start, end) ranges."""
+    sorted_hours = sorted(hours)
+    if not sorted_hours:
+        return []
+    runs: list[tuple[int, int]] = []
+    start = prev = sorted_hours[0]
+    for hour in sorted_hours[1:]:
+        if hour == prev + 1:
+            prev = hour
+        else:
+            runs.append((start, prev + 1))
+            start = prev = hour
+    runs.append((start, prev + 1))
+    return runs
+
+
 def _collect_section_details(
     venue: str,
     date_str: str,
@@ -119,73 +136,43 @@ def _collect_section_details(
     today: date,
 ) -> tuple[list[str], list[tuple[str, str]]]:
     """Return (summary_lines, [(button_label, booking_text), ...]) for one venue+date."""
+    # Group courts by maximal contiguous (start_hour, end_hour) intervals.
+    interval_to_courts: dict[tuple[int, int], list[str]] = defaultdict(list)
+    for court, hrs in courts_map.items():
+        for start_h, end_h in _find_consecutive_runs(hrs):
+            interval_to_courts[(start_h, end_h)].append(court)
+
+    sorted_intervals = sorted(
+        interval_to_courts.keys(),
+        key=lambda span: (-(span[1] - span[0]), span[0]),
+    )
+
     summary_lines: list[str] = []
     booking_options: list[tuple[str, str]] = []
-    is_two_hour_window = len(target_hours) == 2 and target_hours[1] == target_hours[0] + 1
-
-    if is_two_hour_window:
-        h1, h2 = target_hours[0], target_hours[1]
-        both_courts = sorted(
-            [c for c, hrs in courts_map.items() if h1 in hrs and h2 in hrs],
-            key=_court_sort_key,
+    for start_h, end_h in sorted_intervals:
+        duration = end_h - start_h
+        courts = sorted(interval_to_courts[(start_h, end_h)], key=_court_sort_key)
+        hours_in_span = list(range(start_h, end_h))
+        badges = ", ".join(
+            _format_court_badge(c, hours_in_span, new_keys, venue, date_str)
+            for c in courts
         )
-        only_h1 = sorted(
-            [c for c, hrs in courts_map.items() if h1 in hrs and h2 not in hrs],
-            key=_court_sort_key,
-        )
-        only_h2 = sorted(
-            [c for c, hrs in courts_map.items() if h2 in hrs and h1 not in hrs],
-            key=_court_sort_key,
-        )
-
-        if both_courts:
-            badges = ", ".join(
-                _format_court_badge(c, [h1, h2], new_keys, venue, date_str)
-                for c in both_courts
+        if duration >= 2:
+            summary_lines.append(
+                f"🔥 ว่างติดกัน {duration} ชม. ({start_h:02d}:00–{end_h:02d}:00): {badges}"
             )
-            summary_lines.append(f"🔥 ว่างติดกัน 2 ชม. ({h1:02d}:00–{h2 + 1:02d}:00): {badges}")
-            for court in both_courts:
-                label = f"💬 จอง 2 ชม. {court} ({h1:02d}-{h2 + 1:02d}น.)"
-                text = build_booking_text(date_str, h1, h2 + 1, court, today)
+            for court in courts:
+                label = f"💬 จอง {duration} ชม. {court} ({start_h:02d}-{end_h:02d}น.)"
+                text = build_booking_text(date_str, start_h, end_h, court, today)
                 booking_options.append((label, text))
-
-        if only_h1:
-            badges = ", ".join(
-                _format_court_badge(c, [h1], new_keys, venue, date_str)
-                for c in only_h1
+        else:
+            summary_lines.append(
+                f"⏱️ ว่าง 1 ชม. ({start_h:02d}:00–{end_h:02d}:00): {badges}"
             )
-            summary_lines.append(f"⏱️ ว่าง 1 ชม. ({h1:02d}:00–{h1 + 1:02d}:00): {badges}")
-            for court in only_h1:
-                label = f"💬 จอง {court} ({h1:02d}:00-{h1 + 1:02d}:00)"
-                text = build_booking_text(date_str, h1, h1 + 1, court, today)
+            for court in courts:
+                label = f"💬 จอง {court} ({start_h:02d}:00-{end_h:02d}:00)"
+                text = build_booking_text(date_str, start_h, end_h, court, today)
                 booking_options.append((label, text))
-
-        if only_h2:
-            badges = ", ".join(
-                _format_court_badge(c, [h2], new_keys, venue, date_str)
-                for c in only_h2
-            )
-            summary_lines.append(f"⏱️ ว่าง 1 ชม. ({h2:02d}:00–{h2 + 1:02d}:00): {badges}")
-            for court in only_h2:
-                label = f"💬 จอง {court} ({h2:02d}:00-{h2 + 1:02d}:00)"
-                text = build_booking_text(date_str, h2, h2 + 1, court, today)
-                booking_options.append((label, text))
-    else:
-        for hour in target_hours:
-            free_courts = sorted(
-                [c for c, hrs in courts_map.items() if hour in hrs],
-                key=_court_sort_key,
-            )
-            if free_courts:
-                badges = ", ".join(
-                    _format_court_badge(c, [hour], new_keys, venue, date_str)
-                    for c in free_courts
-                )
-                summary_lines.append(f"⏱️ {hour:02d}:00–{hour + 1:02d}:00: {badges}")
-                for court in free_courts:
-                    label = f"💬 จอง {court} ({hour:02d}:00-{hour + 1:02d}:00)"
-                    text = build_booking_text(date_str, hour, hour + 1, court, today)
-                    booking_options.append((label, text))
 
     return summary_lines, booking_options
 

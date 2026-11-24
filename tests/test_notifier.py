@@ -129,6 +129,33 @@ class StateAndFormattingTests(unittest.TestCase):
             )
         )
 
+    def test_three_hour_window_consecutive_runs(self) -> None:
+        now_bkk = datetime(2026, 11, 24, 17, 30, tzinfo=BANGKOK_TZ)
+        slots = [
+            # Court 1: 3 consecutive hours (18:00-21:00)
+            CourtSlot(VENUE_COZY, "2026-11-25", 18, "Court 1"),
+            CourtSlot(VENUE_COZY, "2026-11-25", 19, "Court 1"),
+            CourtSlot(VENUE_COZY, "2026-11-25", 20, "Court 1"),
+            # Court 2: 2 consecutive hours (18:00-20:00)
+            CourtSlot(VENUE_COZY, "2026-11-25", 18, "Court 2"),
+            CourtSlot(VENUE_COZY, "2026-11-25", 19, "Court 2"),
+            # Court 3: split single hours (18:00-19:00 and 20:00-21:00)
+            CourtSlot(VENUE_COZY, "2026-11-25", 18, "Court 3"),
+            CourtSlot(VENUE_COZY, "2026-11-25", 20, "Court 3"),
+        ]
+        msg = format_line_message(
+            slots_by_venue={VENUE_COZY: slots},
+            new_slots=slots,
+            now_bkk=now_bkk,
+            target_hours=[18, 19, 20],
+        )
+        self.assertIsNotNone(msg)
+        assert msg is not None
+        self.assertIn("ว่างติดกัน 3 ชม. (18:00–21:00): Court 1 🆕", msg)
+        self.assertIn("ว่างติดกัน 2 ชม. (18:00–20:00): Court 2 🆕", msg)
+        self.assertIn("ว่าง 1 ชม. (18:00–19:00): Court 3 🆕", msg)
+        self.assertIn("ว่าง 1 ชม. (20:00–21:00): Court 3 🆕", msg)
+
 
 if __name__ == "__main__":
     unittest.main()
