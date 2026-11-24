@@ -7,6 +7,7 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
+from src.beat_notify import parse_slots_from_args
 from src.checkers import (
     parse_beat_times_payload,
     parse_cozy_aria_label,
@@ -212,6 +213,19 @@ class StateAndFormattingTests(unittest.TestCase):
         self.assertIn("ว่างติดกัน 2 ชม. (18:00–20:00): Court 2 🆕", msg)
         self.assertIn("ว่าง 1 ชม. (18:00–19:00): Court 3 🆕", msg)
         self.assertIn("ว่าง 1 ชม. (20:00–21:00): Court 3 🆕", msg)
+
+    def test_beat_notify_parse_slots_excludes_kid(self) -> None:
+        slots = parse_slots_from_args(
+            [
+                "2026-11-24|19|Tennis Indoor Court 1",
+                "2026-11-24|19|Tennis Red Clay Court 9 (Kid)",
+            ],
+            None,
+        )
+        self.assertEqual(
+            slots,
+            [CourtSlot(VENUE_BEAT, "2026-11-24", 19, "Indoor Court 1")],
+        )
 
 
 if __name__ == "__main__":
