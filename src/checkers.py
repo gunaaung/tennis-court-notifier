@@ -361,6 +361,7 @@ def fetch_all_available_slots(
     target_dates: list[date],
     target_hours: set[int],
     headless: bool = True,
+    enable_beat: bool = False,
     beat_exclude_kid: bool = True,
     oncourt_email: str = "",
     oncourt_password: str = "",
@@ -379,13 +380,21 @@ def fetch_all_available_slots(
     checkers = [
         (VENUE_COZY, lambda page: check_cozy_tennis(page, target_dates, target_hours)),
         (VENUE_OZZY, lambda page: check_ozzy_court(page, target_dates, target_hours)),
-        (
-            VENUE_BEAT,
-            lambda page: check_beat_discovery(
-                page, target_dates, target_hours, exclude_kid_courts=beat_exclude_kid
-            ),
-        ),
     ]
+
+    if enable_beat:
+        checkers.append(
+            (
+                VENUE_BEAT,
+                lambda page: check_beat_discovery(
+                    page, target_dates, target_hours, exclude_kid_courts=beat_exclude_kid
+                ),
+            )
+        )
+    else:
+        skipped_venues[VENUE_BEAT] = (
+            "Disabled by default (Cloudflare anti-bot challenge blocks automated headless access)"
+        )
 
     if oncourt_email and oncourt_password:
         checkers.append(

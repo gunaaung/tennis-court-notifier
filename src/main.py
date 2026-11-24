@@ -66,6 +66,11 @@ def main(argv: list[str] | None = None) -> int:
     days_ahead = int(os.getenv("DAYS_AHEAD", "2"))
     target_hours = parse_target_hours(os.getenv("TARGET_HOURS", "18,19,20"))
     skip_past = os.getenv("SKIP_PAST_HOURS", "true").lower() in {"1", "true", "yes"}
+    enable_beat = os.getenv("ENABLE_BEAT_DISCOVERY", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
     beat_exclude_kid = os.getenv("BEAT_EXCLUDE_KID_COURTS", "true").lower() in {
         "1",
         "true",
@@ -87,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
         target_dates=target_dates,
         target_hours=set(target_hours),
         headless=not args.headed,
+        enable_beat=enable_beat,
         beat_exclude_kid=beat_exclude_kid,
         oncourt_email=oncourt_email,
         oncourt_password=oncourt_password,

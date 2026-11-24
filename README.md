@@ -3,7 +3,7 @@
 ระบบตรวจสอบตารางคอร์ทเทนนิสอัตโนมัติสำหรับช่วงเวลา **18.00–21.00 น.** (เช็กล่วงหน้า **วันนี้ + วันพรุ่งนี้**) จาก 4 สนาม:
 1. **Cozy Tennis** (`https://book.cozytennis.com/schedule`) — LINE OA `@cozytennis`
 2. **Ozzy Court / The Challenge Tennis Club** (`https://court.ozzy.asia/court-demo`) — LINE OA `@925atqia`
-3. **BEAT Discovery (เฉพาะ Tennis มาตรฐาน ไม่รวมคอร์ท Kid)** (`https://beatdiscovery.okrabook.com/venues/v2/venue/BEAT%20Discovery`) — LINE OA `@BEATDiscovery`
+3. **BEAT Discovery (เฉพาะ Tennis มาตรฐาน ไม่รวมคอร์ท Kid)** (`https://beatdiscovery.okrabook.com/venues/v2/venue/BEAT%20Discovery`) — LINE OA `@BEATDiscovery` *(ปิดไว้โดยค่าเริ่มต้น เนื่องจากติด Cloudflare anti-bot challenge สำหรับ headless automation)*
 4. **Simoorgh Tennis Academy (Bangna)** (`https://getoncourt.app/en/courts/simoorgh-tennis-academy-bangna/book`) — LINE OA `@409mkpcj` *(ต้องตั้งค่า Email/Password ของ OnCourt ใน Secrets)*
 
 รันอัตโนมัติบน **GitHub Actions** ทุกๆ 10 นาที และส่งข้อความแจ้งเตือนเข้า **LINE** ทันทีเมื่อมีคอร์ทว่างใหม่ (แยกให้ชัดเจนทั้งกรณีว่างติดกัน 2 ชม. และว่างแยก 1 ชม.) พร้อมระบบจำสถานะเพื่อไม่ให้แจ้งเตือนซ้ำ
