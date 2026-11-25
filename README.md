@@ -68,6 +68,13 @@ python -m unittest discover -s tests -v
 python -m src.main --force-notify
 ```
 
+### ตั้งเวลาเช็กอัตโนมัติบน Windows (Task Scheduler ทุก 10 นาที)
+ในกรณีที่ GitHub Actions Cron ดีเลย์หรือข้ามรอบ สามารถตั้งรันจากเครื่อง Windows โดยตรง (ช่วง 09.00–19.00 น. ทุก 10 นาที, บันทึกผลไว้ที่ `logs/notifier.log`) ได้ด้วยคำสั่ง:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install_windows_task.ps1
+```
+
 ---
 
 ## ⚙️ การปรับแต่งค่า (Environment Variables)
