@@ -8,6 +8,11 @@ from datetime import datetime
 from pathlib import Path
 
 from src.beat_notify import parse_slots_from_args
+from scripts.suanluang_stats import (
+    detect_release_events,
+    extract_window_config,
+    summarize_tennis_day,
+)
 from src.checkers import (
     parse_beat_times_payload,
     parse_cozy_aria_label,
@@ -248,6 +253,47 @@ class StateAndFormattingTests(unittest.TestCase):
             slots,
             [CourtSlot(VENUE_BEAT, "2026-11-24", 19, "Indoor Court 1")],
         )
+
+    def test_suanluang_window_config_and_release_detection(self) -> None:
+        html = r'\"windowOpenDow\":0,\"windowOpenHour\":20,\"windowMode\":\"WEEK\",\"windowRollingDays\":14'
+        cfg = extract_window_config(html)
+        self.assertEqual(
+            cfg,
+            {
+                "windowMode": "WEEK",
+                "windowOpenDow": 0,
+                "windowOpenHour": 20,
+                "windowRollingDays": 14,
+            },
+        )
+
+        day_summary = summarize_tennis_day(
+            {
+                "courts": {
+                    "cmqugjzsi000c59fgvl2ydfoq": [
+                        {"time": "18:00", "state": "booked"},
+                        {"time": "19:00", "state": "available"},
+                    ],
+                    "cmqugobqw001159fgftxnztct": [
+                        {"time": "18:00", "state": "booked"},
+                    ],
+                }
+            },
+            "2026-12-01",
+        )
+        self.assertEqual(day_summary["booked"], 1)
+        self.assertEqual(day_summary["available"], 1)
+        self.assertEqual(day_summary["eve_avail"], ["Court 1@19:00"])
+
+        events = detect_release_events(
+            previous_days={"2026-12-01": {"booked": 0, "available": 84}},
+            current_days=[day_summary],
+            today=datetime(2026, 11, 29, 20, 5, tzinfo=BANGKOK_TZ).date(),
+            now_iso="2026-11-29T20:05:00+07:00",
+        )
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["date"], "2026-12-01")
+        self.assertEqual(events[0]["days_ahead"], 2)
 
 
 if __name__ == "__main__":
