@@ -1,4 +1,4 @@
-"""Silent scheduled runner with rotating UTF-8 log and 09:00-19:00 ICT window guard."""
+"""Silent scheduled runner with rotating UTF-8 log and 08:00-19:00 ICT window guard."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def _append_log(log_path: Path, text: str) -> None:
 
 def _within_active_window(hour: int, minute: int) -> bool:
     total_minutes = hour * 60 + minute
-    return (9 * 60) <= total_minutes <= (19 * 60 + 5)
+    return (8 * 60) <= total_minutes <= (19 * 60 + 5)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--ignore-window",
         action="store_true",
-        help="Run even outside 09:00-19:05 Asia/Bangkok.",
+        help="Run even outside 08:00-19:05 Asia/Bangkok.",
     )
     args = parser.parse_args(argv)
 
@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.ignore_window and not _within_active_window(now_bkk.hour, now_bkk.minute):
         _append_log(
             log_path,
-            f"=== {stamp} +07:00 ===\n[INFO] Outside 09:00-19:05 ICT window; skipped.\n\n",
+            f"=== {stamp} +07:00 ===\n[INFO] Outside 08:00-19:05 ICT window; skipped.\n\n",
         )
         return 0
 
