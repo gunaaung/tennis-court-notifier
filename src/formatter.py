@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import date, datetime
 from urllib.parse import quote
 
-from src.models import CourtSlot, VENUE_LINE_OAS, VENUE_URLS
+from src.models import CourtSlot, VENUE_DISPLAY_NAMES, VENUE_LINE_OAS, VENUE_URLS
 
 THAI_WEEKDAYS = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
 THAI_MONTHS_SHORT = [
@@ -47,22 +47,56 @@ def format_thai_date(date_str: str, today: date) -> str:
     return base
 
 
+def _format_thai_day_short(date_str: str, today: date) -> str:
+    d = date.fromisoformat(date_str)
+    weekday = THAI_WEEKDAYS[d.weekday()]
+    month = THAI_MONTHS_SHORT[d.month]
+    delta = (d - today).days
+    rel = " (วันนี้)" if delta == 0 else " (พรุ่งนี้)" if delta == 1 else ""
+    return f"วัน{weekday}ที่ {d.day} {month}{rel}"
+
+
 def build_booking_text(
     date_str: str,
     start_hour: int,
     end_hour: int,
     court: str,
     today: date,
+    venue: str = "",
 ) -> str:
     """Build polite Thai pre-filled message for contacting venue admin to book."""
-    d = date.fromisoformat(date_str)
-    weekday = THAI_WEEKDAYS[d.weekday()]
-    month = THAI_MONTHS_SHORT[d.month]
-    delta = (d - today).days
-    rel = " (วันนี้)" if delta == 0 else " (พรุ่งนี้)" if delta == 1 else ""
+    day_label = _format_thai_day_short(date_str, today)
+    venue_display = VENUE_DISPLAY_NAMES.get(venue, venue).strip()
+    if venue_display:
+        return (
+            f"สวัสดีครับ ขอจองคอร์ท\n"
+            f"{venue_display}\n"
+            f"{day_label} เวลา {start_hour:02d}:00-{end_hour:02d}:00 น. ({court}) ครับ"
+        )
     return (
-        f"สวัสดีครับ ขอจองคอร์ทวัน{weekday}ที่ {d.day} {month}{rel} "
+        f"สวัสดีครับ ขอจองคอร์ท{day_label} "
         f"เวลา {start_hour:02d}:00-{end_hour:02d}:00 น. ({court}) ครับ"
+    )
+
+
+def build_invite_text(
+    venue: str,
+    date_str: str,
+    start_hour: int,
+    end_hour: int,
+    court: str,
+    today: date,
+) -> str:
+    """Build Thai hitting-partner invitation message for sharing to LINE groups."""
+    day_label = _format_thai_day_short(date_str, today)
+    venue_display = VENUE_DISPLAY_NAMES.get(venue, venue).strip()
+    return (
+        f"สวัสดีครับ หาคนมาตีโต้ Level 2.5-3.5\n"
+        f"ที่ {venue_display}\n"
+        f"{day_label} เวลา {start_hour:02d}:00-{end_hour:02d}:00 น. ({court}) ครับ\n"
+        f"ต้องการ 2 คน\n"
+        f"1.\n"
+        f"2."
     )
 
 
@@ -70,6 +104,17 @@ def build_line_oa_booking_url(oa_id: str, message_text: str) -> str:
     """Build official LINE OA URL scheme link with percent-encoded pre-filled text."""
     encoded_id = quote(oa_id, safe="")
     prefix = f"https://line.me/R/oaMessage/{encoded_id}/?"
+    trimmed_text = message_text
+    encoded_text = quote(trimmed_text, safe="")
+    while len(prefix) + len(encoded_text) > MAX_LINE_URI_LENGTH and trimmed_text:
+        trimmed_text = trimmed_text[:-1]
+        encoded_text = quote(trimmed_text, safe="")
+    return prefix + encoded_text
+
+
+def build_line_share_url(message_text: str) -> str:
+    """Build official LINE Share URL scheme link with percent-encoded pre-filled text."""
+    prefix = "https://line.me/R/share?text="
     trimmed_text = message_text
     encoded_text = quote(trimmed_text, safe="")
     while len(prefix) + len(encoded_text) > MAX_LINE_URI_LENGTH and trimmed_text:
@@ -134,8 +179,8 @@ def _collect_section_details(
     new_keys: set[str],
     target_hours: list[int],
     today: date,
-) -> tuple[list[str], list[tuple[str, str]]]:
-    """Return (summary_lines, [(button_label, booking_text), ...]) for one venue+date."""
+) -> tuple[list[str], list[tuple[str, str, str]]]:
+    """Return (summary_lines, [(button_label, booking_text, invite_text), ...]) for one venue+date."""
     # Group courts by maximal contiguous (start_hour, end_hour) intervals.
     interval_to_courts: dict[tuple[int, int], list[str]] = defaultdict(list)
     for court, hrs in courts_map.items():
@@ -148,7 +193,7 @@ def _collect_section_details(
     )
 
     summary_lines: list[str] = []
-    booking_options: list[tuple[str, str]] = []
+    booking_options: list[tuple[str, str, str]] = []
     for start_h, end_h in sorted_intervals:
         duration = end_h - start_h
         courts = sorted(interval_to_courts[(start_h, end_h)], key=_court_sort_key)
@@ -163,16 +208,18 @@ def _collect_section_details(
             )
             for court in courts:
                 label = f"💬 จอง {duration} ชม. {court} ({start_h:02d}-{end_h:02d}น.)"
-                text = build_booking_text(date_str, start_h, end_h, court, today)
-                booking_options.append((label, text))
+                text = build_booking_text(date_str, start_h, end_h, court, today, venue=venue)
+                invite = build_invite_text(venue, date_str, start_h, end_h, court, today)
+                booking_options.append((label, text, invite))
         else:
             summary_lines.append(
                 f"⏱️ ว่าง 1 ชม. ({start_h:02d}:00–{end_h:02d}:00): {badges}"
             )
             for court in courts:
                 label = f"💬 จอง {court} ({start_h:02d}:00-{end_h:02d}:00)"
-                text = build_booking_text(date_str, start_h, end_h, court, today)
-                booking_options.append((label, text))
+                text = build_booking_text(date_str, start_h, end_h, court, today, venue=venue)
+                invite = build_invite_text(venue, date_str, start_h, end_h, court, today)
+                booking_options.append((label, text, invite))
 
     return summary_lines, booking_options
 
@@ -219,8 +266,13 @@ def format_line_message(
     return text
 
 
-def _make_uri_button(label: str, uri: str, primary: bool = True) -> dict:
-    return {
+def _make_uri_button(
+    label: str,
+    uri: str,
+    primary: bool = True,
+    color: str | None = None,
+) -> dict:
+    btn: dict = {
         "type": "button",
         "style": "primary" if primary else "secondary",
         "height": "sm",
@@ -228,6 +280,22 @@ def _make_uri_button(label: str, uri: str, primary: bool = True) -> dict:
             "type": "uri",
             "label": label[:MAX_LINE_BUTTON_LABEL_LENGTH],
             "uri": uri,
+        },
+    }
+    if color:
+        btn["color"] = color
+    return btn
+
+
+def _make_clipboard_button(label: str, clipboard_text: str) -> dict:
+    return {
+        "type": "button",
+        "style": "secondary",
+        "height": "sm",
+        "action": {
+            "type": "clipboard",
+            "label": label[:MAX_LINE_BUTTON_LABEL_LENGTH],
+            "clipboardText": clipboard_text[:MAX_LINE_URI_LENGTH],
         },
     }
 
@@ -293,12 +361,35 @@ def format_line_flex_message(
 
             footer_buttons: list[dict] = []
             if oa_id:
-                for label, booking_text in booking_options[:MAX_FLEX_BUTTONS_PER_BUBBLE]:
+                for label, booking_text, _ in booking_options[:MAX_FLEX_BUTTONS_PER_BUBBLE]:
                     booking_url = build_line_oa_booking_url(oa_id, booking_text)
                     footer_buttons.append(_make_uri_button(label, booking_url, primary=True))
             if schedule_url:
                 footer_buttons.append(
                     _make_uri_button("🌐 เปิดดูตารางเว็บ", schedule_url, primary=False)
+                )
+            if booking_options:
+                # Add a dedicated invite row using the top (longest consecutive) slot.
+                top_invite_text = booking_options[0][2]
+                share_url = build_line_share_url(top_invite_text)
+                footer_buttons.append(
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "spacing": "sm",
+                        "contents": [
+                            _make_uri_button(
+                                "🤝 แชร์ชวนตี",
+                                share_url,
+                                primary=True,
+                                color="#2563EB",
+                            ),
+                            _make_clipboard_button(
+                                "📋 คัดลอกชวนตี",
+                                top_invite_text,
+                            ),
+                        ],
+                    }
                 )
 
             bubble: dict = {

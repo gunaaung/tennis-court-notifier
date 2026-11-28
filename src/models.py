@@ -30,6 +30,14 @@ VENUE_LINE_OAS = {
     VENUE_SUANLUANG: "@slr9sportcenter",
 }
 
+VENUE_DISPLAY_NAMES = {
+    VENUE_COZY: "Cozy Tennis",
+    VENUE_OZZY: "The Challenge Tennis Club",
+    VENUE_BEAT: "BEAT Discovery",
+    VENUE_SIMOORGH: "Simoorgh Tennis Academy (Bangna)",
+    VENUE_SUANLUANG: "ศูนย์กีฬาสวนหลวง ร.9",
+}
+
 
 @dataclass(frozen=True, order=True)
 class CourtSlot:

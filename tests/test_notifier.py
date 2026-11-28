@@ -22,7 +22,10 @@ from src.checkers import (
     parse_suanluang_availability_payload,
 )
 from src.formatter import (
+    build_booking_text,
+    build_invite_text,
     build_line_oa_booking_url,
+    build_line_share_url,
     format_line_flex_message,
     format_line_message,
 )
@@ -204,14 +207,35 @@ class StateAndFormattingTests(unittest.TestCase):
         bubble = flex["contents"]
         self.assertEqual(bubble["type"], "bubble")
         buttons = bubble["footer"]["contents"]
-        self.assertEqual(len(buttons), 2)
-        for btn in buttons:
+        self.assertEqual(len(buttons), 3)
+        for btn in buttons[:2]:
             self.assertLessEqual(len(btn["action"]["label"]), 40)
             self.assertLessEqual(len(btn["action"]["uri"]), 1000)
         self.assertTrue(
             buttons[0]["action"]["uri"].startswith(
                 "https://line.me/R/oaMessage/%40925atqia/?"
             )
+        )
+        invite_row = buttons[2]
+        self.assertEqual(invite_row["type"], "box")
+        self.assertEqual(invite_row["layout"], "horizontal")
+        share_btn, copy_btn = invite_row["contents"]
+        self.assertTrue(
+            share_btn["action"]["uri"].startswith("https://line.me/R/share?text=")
+        )
+        self.assertLessEqual(len(share_btn["action"]["uri"]), 1000)
+        self.assertEqual(copy_btn["action"]["type"], "clipboard")
+        self.assertIn("หาคนมาตีโต้ Level 2.5-3.5", copy_btn["action"]["clipboardText"])
+        self.assertIn("The Challenge Tennis Club", copy_btn["action"]["clipboardText"])
+        self.assertIn("ต้องการ 2 คน", copy_btn["action"]["clipboardText"])
+
+        today = datetime(2026, 11, 28, 12, 0, tzinfo=BANGKOK_TZ).date()
+        booking_txt = build_booking_text("2026-11-29", 18, 21, "Court 6", today, venue=VENUE_OZZY)
+        self.assertIn("The Challenge Tennis Club", booking_txt)
+        self.assertIn("18:00-21:00 น. (Court 6)", booking_txt)
+        invite_txt = build_invite_text(VENUE_OZZY, "2026-11-29", 18, 21, "Court 6", today)
+        self.assertTrue(
+            build_line_share_url(invite_txt).startswith("https://line.me/R/share?text=")
         )
 
     def test_three_hour_window_consecutive_runs(self) -> None:
